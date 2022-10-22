@@ -1,0 +1,12 @@
+name: Vacuum
+version: '${project.version}'
+main: com.keremyurekli.Main
+api-version: 1.18
+prefix: VACUUM
+authors: [ keremyurekli ]
+description: vacuum go brrr
+website: za
+commands:
+  item:
+    permission: op
+    description: get the vacuum son
