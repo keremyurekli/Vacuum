@@ -14,13 +14,16 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.material.MaterialData;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.BlockIterator;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
+import java.util.List;
 
+import static org.bukkit.Material.AIR;
 import static org.bukkit.Material.DIAMOND_BLOCK;
 
 public class rightClick implements Listener {
@@ -45,24 +48,47 @@ public class rightClick implements Listener {
 
     };
 
-    private void getClose(Player p, Entity e1, Entity e2, Material m){
+    public List<Block> getNearbyBlocks(Location location, int radius) {
+        List<Block> blocks = new ArrayList<Block>();
+        for(int x = location.getBlockX() - radius; x <= location.getBlockX() + radius; x++) {
+            for(int y = location.getBlockY() - radius; y <= location.getBlockY() + radius; y++) {
+                for(int z = location.getBlockZ() - radius; z <= location.getBlockZ() + radius; z++) {
+                    if(!location.getWorld().getBlockAt(x, y, z).getType().equals(AIR)){
+                        blocks.add(location.getWorld().getBlockAt(x, y, z));
+                    }
+                }
+            }
+        }
+        return blocks;
+    }
 
-        new BukkitRunnable() {
+
+    private void getClose(Player p, Entity e1, Material m){
+        int id = Bukkit.getServer().getScheduler().scheduleSyncRepeatingTask(JavaPlugin.getProvidingPlugin(rightClick.class), new Runnable() {
             @Override
             public void run() {
+                double x = p.getLocation().getX();
+                double y = p.getLocation().getY()+0.3;
+                double z = p.getLocation().getZ();
+
+                Location temploc = new Location(p.getWorld(),x,y,z);
+
+                Vector unitVector = e1.getLocation().toVector().subtract(temploc.toVector()).normalize();
+                e1.setVelocity(unitVector.multiply(-2));
+
 
                 for(Entity temp : p.getNearbyEntities(1,1,1)){
                     if(temp.equals(e1)){
-                        p.getInventory().addItem(new ItemStack(m, 1));
-                        p.playSound(p, Sound.BLOCK_BASALT_STEP, 1, 0);
+                        Item i = p.getWorld().dropItem(p.getLocation(), new ItemStack(m, 1));
+                        i.setPickupDelay(0);
 
-                        e2.remove();
                         e1.remove();
                     }
                 }
 
             }
-        }.runTaskTimer(new Main(), 0, 1);
+        }, 0, 1);
+
 
 
     }
@@ -75,13 +101,16 @@ public class rightClick implements Listener {
         Player p = event.getPlayer();
         World w = p.getWorld();
 
-
         if(p.getInventory().getItemInMainHand().getType().equals(Material.HOPPER) && p.getInventory().getItemInMainHand().getItemMeta().getDisplayName().equals("§a§l" + "VACUUM")) {
-            p.sendMessage("VACUUM");
-            int distance = 30;
+            int distance = 40;
+
 
             RayTraceResult result = p.rayTraceBlocks(distance, FluidCollisionMode.ALWAYS);
-            assert result != null;
+            if(result == null){
+                throw null;
+            }
+
+
 
             Block b = null;
             if (result.getHitBlock() != null) {
@@ -90,49 +119,30 @@ public class rightClick implements Listener {
                 return;
             }
             Location loc = b.getLocation();
-            Material m = loc.getBlock().getType();
 
 
-            for (Material mat : blacklist) {
-                if (m.equals(mat)) {
-                    return;
+            List<Block> end = getNearbyBlocks(loc,1);
+            end.add(b);
+
+            for(Block blocks : end){
+                Material m = blocks.getType();
+                for (Material mat : blacklist) {
+                    if (m.equals(mat)) {
+                        return;
+                    }
                 }
+
+                FallingBlock fallingBlock = w.spawnFallingBlock(blocks.getLocation(), blocks.getBlockData());
+
+                fallingBlock.setDropItem(false);
+                fallingBlock.setInvulnerable(true);
+
+
+                fallingBlock.setGlowing(true);
+                getClose(p,fallingBlock,m);
+                blocks.setType(AIR);
+                p.playSound(p, Sound.BLOCK_BASALT_STEP, 1, 0);
             }
-
-
-            int x = loc.getBlockX();
-            int y = loc.getBlockY() - 1;
-            int z = loc.getBlockZ();
-
-            Location temp = new Location(w, x, y, z);
-
-            ArmorStand armorStand = (ArmorStand) w.spawnEntity(temp, EntityType.ARMOR_STAND);
-            armorStand.addEquipmentLock(EquipmentSlot.CHEST, ArmorStand.LockType.ADDING_OR_CHANGING);
-            armorStand.addEquipmentLock(EquipmentSlot.CHEST, ArmorStand.LockType.REMOVING_OR_CHANGING);
-            armorStand.addEquipmentLock(EquipmentSlot.FEET, ArmorStand.LockType.ADDING_OR_CHANGING);
-            armorStand.addEquipmentLock(EquipmentSlot.FEET, ArmorStand.LockType.REMOVING_OR_CHANGING);
-            armorStand.addEquipmentLock(EquipmentSlot.HEAD, ArmorStand.LockType.ADDING_OR_CHANGING);
-            armorStand.addEquipmentLock(EquipmentSlot.HEAD, ArmorStand.LockType.REMOVING_OR_CHANGING);
-            armorStand.addEquipmentLock(EquipmentSlot.LEGS, ArmorStand.LockType.ADDING_OR_CHANGING);
-            armorStand.addEquipmentLock(EquipmentSlot.LEGS, ArmorStand.LockType.REMOVING_OR_CHANGING);
-            armorStand.addEquipmentLock(EquipmentSlot.HAND, ArmorStand.LockType.ADDING_OR_CHANGING);
-            armorStand.addEquipmentLock(EquipmentSlot.HAND, ArmorStand.LockType.REMOVING_OR_CHANGING);
-            armorStand.addEquipmentLock(EquipmentSlot.OFF_HAND, ArmorStand.LockType.ADDING_OR_CHANGING);
-            armorStand.addEquipmentLock(EquipmentSlot.OFF_HAND, ArmorStand.LockType.REMOVING_OR_CHANGING);
-
-            FallingBlock fallingBlock = w.spawnFallingBlock(loc, b.getBlockData());
-            fallingBlock.setGravity(false);
-            fallingBlock.setDropItem(false);
-            fallingBlock.setInvulnerable(true);
-
-            fallingBlock.setGlowing(true);
-            armorStand.addPassenger(fallingBlock);
-
-            Vector unitVector = armorStand.getLocation().toVector().subtract(p.getLocation().toVector()).normalize();
-            armorStand.setVelocity(unitVector.multiply(-0.1));
-
-
-            getClose(p,armorStand,fallingBlock,m);
 
 
             event.setCancelled(true);
